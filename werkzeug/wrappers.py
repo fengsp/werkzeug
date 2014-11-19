@@ -719,41 +719,6 @@ class BaseResponse(object):
         self._on_close.append(func)
         return func
 
-    def __repr__(self):
-        if self.is_sequence:
-            body_info = '%d bytes' % sum(map(len, self.iter_encoded()))
-        else:
-            body_info = self.is_streamed and 'streamed' or 'likely-streamed'
-        return '<%s %s [%s]>' % (
-            self.__class__.__name__,
-            body_info,
-            self.status
-        )
-
-    def _get_status_code(self):
-        return self._status_code
-    def _set_status_code(self, code):
-        self._status_code = code
-        try:
-            self._status = '%d %s' % (code, HTTP_STATUS_CODES[code].upper())
-        except KeyError:
-            self._status = '%d UNKNOWN' % code
-    status_code = property(_get_status_code, _set_status_code,
-                           doc='The HTTP Status code as number')
-    del _get_status_code, _set_status_code
-
-    def _get_status(self):
-        return self._status
-    def _set_status(self, value):
-        self._status = to_native(value)
-        try:
-            self._status_code = int(self._status.split(None, 1)[0])
-        except ValueError:
-            self._status_code = 0
-            self._status = '0 %s' % self._status
-    status = property(_get_status, _set_status, doc='The HTTP Status code')
-    del _get_status, _set_status
-
     def get_data(self, as_text=False):
         """The string representation of the request body.  Whenever you call
         this property the request iterable is encoded and flattened.  This
