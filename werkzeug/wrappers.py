@@ -1,25 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-    werkzeug.wrappers
-    ~~~~~~~~~~~~~~~~~
-
-    The wrappers are simple request and response objects which you can
-    subclass to do whatever you want them to do.  The request object contains
-    the information transmitted by the client (webbrowser) and the response
-    object contains all the information sent back to the browser.
-
-    An important detail is that the request object is created with the WSGI
-    environ and will act as high-level proxy whereas the response object is an
-    actual WSGI application.
-
-    Like everything else in Werkzeug these objects will work correctly with
-    unicode data.  Incoming form data parsed by the response object will be
-    decoded into an unicode object if possible and if it makes sense.
-
-
-    :copyright: (c) 2014 by the Werkzeug Team, see AUTHORS for more details.
-    :license: BSD, see LICENSE for more details.
-"""
 from functools import update_wrapper
 from datetime import datetime, timedelta
 
@@ -634,46 +613,6 @@ class BaseRequest(object):
 
 class BaseResponse(object):
     """Base response class.  The most important fact about a response object
-    is that it's a regular WSGI application.  It's initialized with a couple
-    of response parameters (headers, body, status code etc.) and will start a
-    valid WSGI response when called with the environ and start response
-    callable.
-
-    Because it's a WSGI application itself processing usually ends before the
-    actual response is sent to the server.  This helps debugging systems
-    because they can catch all the exceptions before responses are started.
-
-    Here a small example WSGI application that takes advantage of the
-    response objects::
-
-        from werkzeug.wrappers import BaseResponse as Response
-
-        def index():
-            return Response('Index page')
-
-        def application(environ, start_response):
-            path = environ.get('PATH_INFO') or '/'
-            if path == '/':
-                response = index()
-            else:
-                response = Response('Not Found', status=404)
-            return response(environ, start_response)
-
-    Like :class:`BaseRequest` which object is lacking a lot of functionality
-    implemented in mixins.  This gives you a better control about the actual
-    API of your response objects, so you can create subclasses and add custom
-    functionality.  A full featured response object is available as
-    :class:`Response` which implements a couple of useful mixins.
-
-    To enforce a new type of already existing responses you can use the
-    :meth:`force_type` method.  This is useful if you're working with different
-    subclasses of response objects and you want to post process them with a
-    know interface.
-
-    Per default the request object will assume all the text data is `utf-8`
-    encoded.  Please refer to `the unicode chapter <unicode.txt>`_ for more
-    details about customizing the behavior.
-
     Response can be any kind of iterable or string.  If it's a string it's
     considered being an iterable with one item which is the string passed.
     Headers can be a list of tuples or a
@@ -790,59 +729,6 @@ class BaseResponse(object):
             body_info,
             self.status
         )
-
-    @classmethod
-    def force_type(cls, response, environ=None):
-        """Enforce that the WSGI response is a response object of the current
-        type.  Werkzeug will use the :class:`BaseResponse` internally in many
-        situations like the exceptions.  If you call :meth:`get_response` on an
-        exception you will get back a regular :class:`BaseResponse` object, even
-        if you are using a custom subclass.
-
-        This method can enforce a given response type, and it will also
-        convert arbitrary WSGI callables into response objects if an environ
-        is provided::
-
-            # convert a Werkzeug response object into an instance of the
-            # MyResponseClass subclass.
-            response = MyResponseClass.force_type(response)
-
-            # convert any WSGI application into a response object
-            response = MyResponseClass.force_type(response, environ)
-
-        This is especially useful if you want to post-process responses in
-        the main dispatcher and use functionality provided by your subclass.
-
-        Keep in mind that this will modify response objects in place if
-        possible!
-
-        :param response: a response object or wsgi application.
-        :param environ: a WSGI environment object.
-        :return: a response object.
-        """
-        if not isinstance(response, BaseResponse):
-            if environ is None:
-                raise TypeError('cannot convert WSGI application into '
-                                'response objects without an environ')
-            response = BaseResponse(*_run_wsgi_app(response, environ))
-        response.__class__ = cls
-        return response
-
-    @classmethod
-    def from_app(cls, app, environ, buffered=False):
-        """Create a new response object from an application output.  This
-        works best if you pass it an application that returns a generator all
-        the time.  Sometimes applications may use the `write()` callable
-        returned by the `start_response` function.  This tries to resolve such
-        edge cases automatically.  But if you don't get the expected output
-        you should set `buffered` to `True` which enforces buffering.
-
-        :param app: the WSGI application to execute.
-        :param environ: the WSGI environment to execute against.
-        :param buffered: set to `True` to enforce buffering.
-        :return: a response object.
-        """
-        return cls(*_run_wsgi_app(app, environ, buffered))
 
     def _get_status_code(self):
         return self._status_code
@@ -1194,18 +1080,6 @@ class BaseResponse(object):
         headers = self.get_wsgi_headers(environ)
         app_iter = self.get_app_iter(environ)
         return app_iter, self.status, headers.to_wsgi_list()
-
-    def __call__(self, environ, start_response):
-        """Process this response as WSGI application.
-
-        :param environ: the WSGI environment.
-        :param start_response: the response callable provided by the WSGI
-                               server.
-        :return: an application iterator
-        """
-        app_iter, status, headers = self.get_wsgi_response(environ)
-        start_response(status, headers)
-        return app_iter
 
 
 class AcceptMixin(object):
