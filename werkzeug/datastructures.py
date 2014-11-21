@@ -846,21 +846,6 @@ class Headers(object):
     and will render a page for a ``400 BAD REQUEST`` if caught in a
     catch-all for HTTP exceptions.
     """
-    def extend(self, iterable):
-        """Extend the headers with a dict or an iterable yielding keys and
-        values.
-        """
-        if isinstance(iterable, dict):
-            for key, value in iteritems(iterable):
-                if isinstance(value, (tuple, list)):
-                    for v in value:
-                        self.add(key, v)
-                else:
-                    self.add(key, value)
-        else:
-            for key, value in iterable:
-                self.add(key, value)
-
     def __delitem__(self, key, _index_operation=True):
         if _index_operation and isinstance(key, (integer_types, slice)):
             del self._list[key]
@@ -905,64 +890,6 @@ class Headers(object):
         """Removes a key or index and returns a (key, value) item."""
         return self.pop()
 
-    def __contains__(self, key):
-        """Check if a key is present."""
-        try:
-            self.__getitem__(key, _get_mode=True)
-        except KeyError:
-            return False
-        return True
-
-    has_key = __contains__
-
-    def __iter__(self):
-        """Yield ``(key, value)`` tuples."""
-        return iter(self._list)
-
-    def __len__(self):
-        return len(self._list)
-
-    def add(self, _key, _value, **kw):
-        """Add a new header tuple to the list.
-
-        Keyword arguments can specify additional parameters for the header
-        value, with underscores converted to dashes::
-
-        >>> d = Headers()
-        >>> d.add('Content-Type', 'text/plain')
-        >>> d.add('Content-Disposition', 'attachment', filename='foo.png')
-
-        The keyword argument dumping uses :func:`dump_options_header`
-        behind the scenes.
-
-        .. versionadded:: 0.4.1
-            keyword arguments were added for :mod:`wsgiref` compatibility.
-        """
-        if kw:
-            _value = _options_header_vkw(_value, kw)
-        _value = _unicodify_header_value(_value)
-        self._validate_value(_value)
-        self._list.append((_key, _value))
-
-    def _validate_value(self, value):
-        if not isinstance(value, text_type):
-            raise TypeError('Value should be unicode.')
-        if u'\n' in value or u'\r' in value:
-            raise ValueError('Detected newline in header value.  This is '
-                'a potential security problem')
-
-    def add_header(self, _key, _value, **_kw):
-        """Add a new header tuple to the list.
-
-        An alias for :meth:`add` for compatibility with the :mod:`wsgiref`
-        :meth:`~wsgiref.headers.Headers.add_header` method.
-        """
-        self.add(_key, _value, **_kw)
-
-    def clear(self):
-        """Clears all headers."""
-        del self._list[:]
-
     def set(self, _key, _value, **kw):
         """Remove all header tuples for `key` and add a new one.  The newly
         added key either appears at the end of the list if there was no
@@ -996,19 +923,6 @@ class Headers(object):
             self._list.append((_key, _value))
             return
         self._list[idx + 1:] = [t for t in listiter if t[0].lower() != ikey]
-
-    def setdefault(self, key, value):
-        """Returns the value for the key if it is in the dict, otherwise it
-        returns `default` and sets that value for `key`.
-
-        :param key: The key to be looked up.
-        :param default: The default value to be returned if the key is not
-                        in the dict.  If not further specified it's `None`.
-        """
-        if key in self:
-            return self[key]
-        self.set(key, value)
-        return value
 
 
 class ImmutableHeadersMixin(object):
