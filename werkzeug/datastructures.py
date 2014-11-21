@@ -846,50 +846,6 @@ class Headers(object):
     and will render a page for a ``400 BAD REQUEST`` if caught in a
     catch-all for HTTP exceptions.
     """
-    def __delitem__(self, key, _index_operation=True):
-        if _index_operation and isinstance(key, (integer_types, slice)):
-            del self._list[key]
-            return
-        key = key.lower()
-        new = []
-        for k, v in self._list:
-            if k.lower() != key:
-                new.append((k, v))
-        self._list[:] = new
-
-    def remove(self, key):
-        """Remove a key.
-
-        :param key: The key to be removed.
-        """
-        return self.__delitem__(key, _index_operation=False)
-
-    def pop(self, key=None, default=_missing):
-        """Removes and returns a key or index.
-
-        :param key: The key to be popped.  If this is an integer the item at
-                    that position is removed, if it's a string the value for
-                    that key is.  If the key is omitted or `None` the last
-                    item is removed.
-        :return: an item.
-        """
-        if key is None:
-            return self._list.pop()
-        if isinstance(key, integer_types):
-            return self._list.pop(key)
-        try:
-            rv = self[key]
-            self.remove(key)
-        except KeyError:
-            if default is not _missing:
-                return default
-            raise
-        return rv
-
-    def popitem(self):
-        """Removes a key or index and returns a (key, value) item."""
-        return self.pop()
-
     def set(self, _key, _value, **kw):
         """Remove all header tuples for `key` and add a new one.  The newly
         added key either appears at the end of the list if there was no
