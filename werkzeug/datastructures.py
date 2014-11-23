@@ -838,48 +838,6 @@ def _unicodify_header_value(value):
     return value
 
 
-@native_itermethods(['keys', 'values', 'items'])
-class Headers(object):
-    """
-    From Werkzeug 0.3 onwards, the :exc:`KeyError` raised by this class is
-    also a subclass of the :class:`~exceptions.BadRequest` HTTP exception
-    and will render a page for a ``400 BAD REQUEST`` if caught in a
-    catch-all for HTTP exceptions.
-    """
-    def set(self, _key, _value, **kw):
-        """Remove all header tuples for `key` and add a new one.  The newly
-        added key either appears at the end of the list if there was no
-        entry or replaces the first one.
-
-        Keyword arguments can specify additional parameters for the header
-        value, with underscores converted to dashes.  See :meth:`add` for
-        more information.
-
-        .. versionchanged:: 0.6.1
-           :meth:`set` now accepts the same arguments as :meth:`add`.
-
-        :param key: The key to be inserted.
-        :param value: The value to be inserted.
-        """
-        if kw:
-            _value = _options_header_vkw(_value, kw)
-        _value = _unicodify_header_value(_value)
-        self._validate_value(_value)
-        if not self._list:
-            self._list.append((_key, _value))
-            return
-        listiter = iter(self._list)
-        ikey = _key.lower()
-        for idx, (old_key, old_value) in enumerate(listiter):
-            if old_key.lower() == ikey:
-                # replace first ocurrence
-                self._list[idx] = (_key, _value)
-                break
-        else:
-            self._list.append((_key, _value))
-            return
-        self._list[idx + 1:] = [t for t in listiter if t[0].lower() != ikey]
-
 
 class ImmutableHeadersMixin(object):
     """Makes a :class:`Headers` immutable.  We do not mark them as
