@@ -641,15 +641,6 @@ class BaseResponse(object):
                                details.)
     """
 
-    #: the charset of the response.
-    charset = 'utf-8'
-
-    #: the default status if none is provided.
-    default_status = 200
-
-    #: the default mimetype if none is provided.
-    default_mimetype = 'text/plain'
-
     #: if set to `False` accessing properties on the response object will
     #: not try to consume the response iterator and convert it into a list.
     #:
@@ -665,100 +656,6 @@ class BaseResponse(object):
     #:
     #: .. versionadded:: 0.8
     autocorrect_location_header = True
-
-    #: Should this response object automatically set the content-length
-    #: header if possible?  This is true by default.
-    #:
-    #: .. versionadded:: 0.8
-    automatically_set_content_length = True
-
-    def __init__(self, response=None, status=None, headers=None,
-                 mimetype=None, content_type=None, direct_passthrough=False):
-        if isinstance(headers, Headers):
-            self.headers = headers
-        elif not headers:
-            self.headers = Headers()
-        else:
-            self.headers = Headers(headers)
-
-        if content_type is None:
-            if mimetype is None and 'content-type' not in self.headers:
-                mimetype = self.default_mimetype
-            if mimetype is not None:
-                mimetype = get_content_type(mimetype, self.charset)
-            content_type = mimetype
-        if content_type is not None:
-            self.headers['Content-Type'] = content_type
-        if status is None:
-            status = self.default_status
-        if isinstance(status, integer_types):
-            self.status_code = status
-        else:
-            self.status = status
-
-        self.direct_passthrough = direct_passthrough
-        self._on_close = []
-
-        # we set the response after the headers so that if a class changes
-        # the charset attribute, the data is set in the correct charset.
-        if response is None:
-            self.response = []
-        elif isinstance(response, (text_type, bytes, bytearray)):
-            self.set_data(response)
-        else:
-            self.response = response
-
-    def call_on_close(self, func):
-        """Adds a function to the internal list of functions that should
-        be called as part of closing down the response.  Since 0.7 this
-        function also returns the function that was passed so that this
-        can be used as a decorator.
-
-        .. versionadded:: 0.6
-        """
-        self._on_close.append(func)
-        return func
-
-    def get_data(self, as_text=False):
-        """The string representation of the request body.  Whenever you call
-        this property the request iterable is encoded and flattened.  This
-        can lead to unwanted behavior if you stream big data.
-
-        This behavior can be disabled by setting
-        :attr:`implicit_sequence_conversion` to `False`.
-
-        If `as_text` is set to `True` the return value will be a decoded
-        unicode string.
-
-        .. versionadded:: 0.9
-        """
-        self._ensure_sequence()
-        rv = b''.join(self.iter_encoded())
-        if as_text:
-            rv = rv.decode(self.charset)
-        return rv
-
-    def set_data(self, value):
-        """Sets a new string as response.  The value set must either by a
-        unicode or bytestring.  If a unicode string is set it's encoded
-        automatically to the charset of the response (utf-8 by default).
-
-        .. versionadded:: 0.9
-        """
-        # if an unicode string is set, it's encoded directly so that we
-        # can set the content length
-        if isinstance(value, text_type):
-            value = value.encode(self.charset)
-        else:
-            value = bytes(value)
-        self.response = [value]
-        if self.automatically_set_content_length:
-            self.headers['Content-Length'] = str(len(value))
-
-    data = property(get_data, set_data, doc='''
-        A descriptor that calls :meth:`get_data` and :meth:`set_data`.  This
-        should not be used and will eventually get deprecated.
-        ''')
 
     def calculate_content_length(self):
         """Returns the content length if available or `None` otherwise."""
