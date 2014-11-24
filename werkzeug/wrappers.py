@@ -657,14 +657,6 @@ class BaseResponse(object):
     #: .. versionadded:: 0.8
     autocorrect_location_header = True
 
-    def calculate_content_length(self):
-        """Returns the content length if available or `None` otherwise."""
-        try:
-            self._ensure_sequence()
-        except RuntimeError:
-            return None
-        return sum(len(x) for x in self.response)
-
     def _ensure_sequence(self, mutable=False):
         """This method can be called by methods that need a sequence.  If
         `mutable` is true, it will also ensure that the response sequence
