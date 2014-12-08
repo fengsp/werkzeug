@@ -230,19 +230,3 @@ def check_password_hash(pwhash, password):
         return False
     method, salt, hashval = pwhash.split('$', 2)
     return safe_str_cmp(_hash_internal(method, salt, password)[0], hashval)
-
-
-def safe_join(directory, filename):
-    """Safely join `directory` and `filename`.  If this cannot be done,
-    this function returns ``None``.
-
-    :param directory: the base directory.
-    :param filename: the untrusted filename relative to that directory.
-    """
-    filename = posixpath.normpath(filename)
-    for sep in _os_alt_seps:
-        if sep in filename:
-            return None
-    if os.path.isabs(filename) or filename.startswith('../'):
-        return None
-    return os.path.join(directory, filename)
