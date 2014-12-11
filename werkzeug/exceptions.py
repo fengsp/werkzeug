@@ -82,12 +82,6 @@ class HTTPException(Exception):
     code = None
     description = None
 
-    def __init__(self, description=None, response=None):
-        Exception.__init__(self)
-        if description is not None:
-            self.description = description
-        self.response = response
-
     @classmethod
     def wrap(cls, exception, name=None):
         """This method returns a new subclass of the exception provided that
