@@ -10,37 +10,6 @@ from werkzeug._internal import _get_environ
 from werkzeug._compat import iteritems, integer_types, text_type, \
      implements_to_string
 
-from werkzeug.wrappers import Response
-
-
-@implements_to_string
-class HTTPException(Exception):
-    """
-    Baseclass for all HTTP exceptions.  This exception can be called as WSGI
-    application to render a default error page or you can catch the subclasses
-    of it independently and render nicer error messages.
-    """
-
-    def get_headers(self, environ=None):
-        """Get a list of headers."""
-        return [('Content-Type', 'text/html')]
-
-    def get_response(self, environ=None):
-        """Get a response object.  If one was passed to the exception
-        it's returned directly.
-
-        :param environ: the optional environ for the request.  This
-                        can be used to modify the response depending
-                        on how the request looked like.
-        :return: a :class:`Response` object or a subclass thereof.
-        """
-        if self.response is not None:
-            return self.response
-        if environ is not None:
-            environ = _get_environ(environ)
-        headers = self.get_headers(environ)
-        return Response(self.get_body(environ), self.code, headers)
-
 
 class MethodNotAllowed(HTTPException):
     """*405* `Method Not Allowed`
