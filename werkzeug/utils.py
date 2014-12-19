@@ -95,52 +95,6 @@ def secure_filename(filename):
     return filename
 
 
-def escape(s, quote=None):
-    """Replace special characters "&", "<", ">" and (") to HTML-safe sequences.
-
-    There is a special handling for `None` which escapes to an empty string.
-
-    .. versionchanged:: 0.9
-       `quote` is now implicitly on.
-
-    :param s: the string to escape.
-    :param quote: ignored.
-    """
-    if s is None:
-        return ''
-    elif hasattr(s, '__html__'):
-        return text_type(s.__html__())
-    elif not isinstance(s, string_types):
-        s = text_type(s)
-    if quote is not None:
-        from warnings import warn
-        warn(DeprecationWarning('quote parameter is implicit now'), stacklevel=2)
-    s = s.replace('&', '&amp;').replace('<', '&lt;') \
-        .replace('>', '&gt;').replace('"', "&quot;")
-    return s
-
-
-def unescape(s):
-    """The reverse function of `escape`.  This unescapes all the HTML
-    entities, not only the XML entities inserted by `escape`.
-
-    :param s: the string to unescape.
-    """
-    def handle_match(m):
-        name = m.group(1)
-        if name in HTMLBuilder._entities:
-            return unichr(HTMLBuilder._entities[name])
-        try:
-            if name[:2] in ('#x', '#X'):
-                return unichr(int(name[2:], 16))
-            elif name.startswith('#'):
-                return unichr(int(name[1:]))
-        except ValueError:
-            pass
-        return u''
-    return _entity_re.sub(handle_match, s)
-
-
 def append_slash_redirect(environ, code=301):
     """Redirect to the same URL but with a slash appended.  The behavior
     of this function is undefined if the path ends with a slash already.

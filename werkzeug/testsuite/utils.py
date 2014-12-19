@@ -46,19 +46,6 @@ class GeneralUtilityTestCase(WerkzeugTestCase):
         resp = utils.redirect(location)
         self.assert_not_in(b'href="http://example.com/?xss="onmouseover="alert(1)"', resp.get_data())
 
-    def test_escape(self):
-        class Foo(str):
-            def __html__(self):
-                return text_type(self)
-        self.assert_equal(utils.escape(None), '')
-        self.assert_equal(utils.escape(42), '42')
-        self.assert_equal(utils.escape('<>'), '&lt;&gt;')
-        self.assert_equal(utils.escape('"foo"'), '&quot;foo&quot;')
-        self.assert_equal(utils.escape(Foo('<foo>')), '<foo>')
-
-    def test_unescape(self):
-        self.assert_equal(utils.unescape('&lt;&auml;&gt;'), u'<ä>')
-
     def test_validate_arguments(self):
         take_none = lambda: None
         take_two = lambda a, b: None
