@@ -27,19 +27,6 @@ from werkzeug.http import is_resource_modified, http_date
 from werkzeug.urls import uri_to_iri, url_quote, url_parse, url_join
 
 
-def responder(f):
-    """Marks a function as responder.  Decorate a function with it and it
-    will automatically call the return value as WSGI application.
-
-    Example::
-
-        @responder
-        def application(environ, start_response):
-            return Response('Hello World!')
-    """
-    return update_wrapper(lambda *a: f(*a)(*a[-2:]), f)
-
-
 def get_current_url(environ, root_only=False, strip_querystring=False,
                     host_only=False, trusted_hosts=None):
     """A handy helper function that recreates the full URL as IRI for the
