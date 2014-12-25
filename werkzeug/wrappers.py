@@ -65,50 +65,6 @@ def _iter_encoded(iterable, charset):
 
 
 class BaseRequest(object):
-    """Very basic request object.  This does not implement advanced stuff like
-    entity tag parsing or cache controls.  The request object is created with
-    the WSGI environment as first argument and will add itself to the WSGI
-    environment as ``'werkzeug.request'`` unless it's created with
-    `populate_request` set to False.
-
-    There are a couple of mixins available that add additional functionality
-    to the request object, there is also a class called `Request` which
-    subclasses `BaseRequest` and all the important mixins.
-
-    It's a good idea to create a custom subclass of the :class:`BaseRequest`
-    and add missing functionality either via mixins or direct implementation.
-    Here an example for such subclasses::
-
-        from werkzeug.wrappers import BaseRequest, ETagRequestMixin
-
-        class Request(BaseRequest, ETagRequestMixin):
-            pass
-
-    Request objects are **read only**.  As of 0.5 modifications are not
-    allowed in any place.  Unlike the lower level parsing functions the
-    request object will use immutable objects everywhere possible.
-
-    Per default the request object will assume all the text data is `utf-8`
-    encoded.  Please refer to `the unicode chapter <unicode.txt>`_ for more
-    details about customizing the behavior.
-
-    Per default the request object will be added to the WSGI
-    environment as `werkzeug.request` to support the debugging system.
-    If you don't want that, set `populate_request` to `False`.
-
-    If `shallow` is `True` the environment is initialized as shallow
-    object around the environ.  Every operation that would modify the
-    environ in any way (such as consuming form data) raises an exception
-    unless the `shallow` attribute is explicitly set to `False`.  This
-    is useful for middlewares where you don't want to consume the form
-    data by accident.  A shallow request is not populated to the WSGI
-    environment.
-
-    .. versionchanged:: 0.5
-       read-only mode was enforced by using immutables classes for all
-       data.
-    """
-
     #: the charset for the request, defaults to utf-8
     charset = 'utf-8'
 
@@ -180,90 +136,6 @@ class BaseRequest(object):
     #:
     #: .. versionadded:: 0.9
     disable_data_descriptor = False
-
-    def __init__(self, environ, populate_request=True, shallow=False):
-        self.environ = environ
-        if populate_request and not shallow:
-            self.environ['werkzeug.request'] = self
-        self.shallow = shallow
-
-    def __repr__(self):
-        # make sure the __repr__ even works if the request was created
-        # from an invalid WSGI environment.  If we display the request
-        # in a debug session we don't want the repr to blow up.
-        args = []
-        try:
-            args.append("'%s'" % self.url)
-            args.append('[%s]' % self.method)
-        except Exception:
-            args.append('(invalid WSGI environ)')
-
-        return '<%s %s>' % (
-            self.__class__.__name__,
-            ' '.join(args)
-        )
-
-    @property
-    def url_charset(self):
-        """The charset that is assumed for URLs.  Defaults to the value
-        of :attr:`charset`.
-
-        .. versionadded:: 0.6
-        """
-        return self.charset
-
-    @classmethod
-    def from_values(cls, *args, **kwargs):
-        """Create a new request object based on the values provided.  If
-        environ is given missing values are filled from there.  This method is
-        useful for small scripts when you need to simulate a request from an URL.
-        Do not use this method for unittesting, there is a full featured client
-        object (:class:`Client`) that allows to create multipart requests,
-        support for cookies etc.
-
-        This accepts the same options as the
-        :class:`~werkzeug.test.EnvironBuilder`.
-
-        .. versionchanged:: 0.5
-           This method now accepts the same arguments as
-           :class:`~werkzeug.test.EnvironBuilder`.  Because of this the
-           `environ` parameter is now called `environ_overrides`.
-
-        :return: request object
-        """
-        from werkzeug.test import EnvironBuilder
-        charset = kwargs.pop('charset', cls.charset)
-        kwargs['charset'] = charset
-        builder = EnvironBuilder(*args, **kwargs)
-        try:
-            return builder.get_request(cls)
-        finally:
-            builder.close()
-
-    @classmethod
-    def application(cls, f):
-        """Decorate a function as responder that accepts the request as first
-        argument.  This works like the :func:`responder` decorator but the
-        function is passed the request object as first argument and the
-        request object will be closed automatically::
-
-            @Request.application
-            def my_wsgi_app(request):
-                return Response('Hello World!')
-
-        :param f: the WSGI callable to decorate
-        :return: a new WSGI callable
-        """
-        #: return a callable that wraps the -2nd argument with the request
-        #: and calls the function with all the arguments up to that one and
-        #: the request.  The return value is then called with the latest
-        #: two arguments.  This makes it possible to use this decorator for
-        #: both methods and standalone WSGI functions.
-        def application(*args):
-            request = cls(args[-2])
-            with request:
-                return f(*args[:-2] + (request,))(*args[-2:])
-        return update_wrapper(application, f)
 
     def _get_file_stream(self, total_content_length, content_type, filename=None,
                         content_length=None):
@@ -354,23 +226,6 @@ class BaseRequest(object):
             return BytesIO(cached_data)
         return self.stream
 
-    def close(self):
-        """Closes associated resources of this request object.  This
-        closes all file handles explicitly.  You can also use the request
-        object in a with statement with will automatically close it.
-
-        .. versionadded:: 0.9
-        """
-        files = self.__dict__.get('files')
-        for key, value in iter_multi_items(files or ()):
-            value.close()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, tb):
-        self.close()
-
     @cached_property
     def stream(self):
         """The stream to read incoming data from.  Unlike :attr:`input_stream`
@@ -391,17 +246,6 @@ class BaseRequest(object):
         'In general it\'s a bad idea to use this one because you can easily '
         'read past the boundary.  Use the :attr:`stream` instead.')
 
-    @cached_property
-    def args(self):
-        """The parsed URL parameters.  By default an
-        :class:`~werkzeug.datastructures.ImmutableMultiDict`
-        is returned from this function.  This can be changed by setting
-        :attr:`parameter_storage_class` to a different type.  This might
-        be necessary if the order of the form data is important.
-        """
-        return url_decode(wsgi_get_bytes(self.environ.get('QUERY_STRING', '')),
-                          self.url_charset, errors=self.encoding_errors,
-                          cls=self.parameter_storage_class)
 
     @cached_property
     def data(self):
