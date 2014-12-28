@@ -65,12 +65,6 @@ def _iter_encoded(iterable, charset):
 
 
 class BaseRequest(object):
-    #: the charset for the request, defaults to utf-8
-    charset = 'utf-8'
-
-    #: the error handling procedure for errors, defaults to 'replace'
-    encoding_errors = 'replace'
-
     #: the maximum content length.  This is forwarded to the form data
     #: parsing function (:func:`parse_form_data`).  When set and the
     #: :attr:`form` or :attr:`files` attribute is accessed and the
@@ -92,47 +86,6 @@ class BaseRequest(object):
     #:
     #: .. versionadded:: 0.5
     max_form_memory_size = None
-
-    #: the class to use for `args` and `form`.  The default is an
-    #: :class:`~werkzeug.datastructures.ImmutableMultiDict` which supports
-    #: multiple values per key.  alternatively it makes sense to use an
-    #: :class:`~werkzeug.datastructures.ImmutableOrderedMultiDict` which
-    #: preserves order or a :class:`~werkzeug.datastructures.ImmutableDict`
-    #: which is the fastest but only remembers the last key.  It is also
-    #: possible to use mutable structures, but this is not recommended.
-    #:
-    #: .. versionadded:: 0.6
-    parameter_storage_class = ImmutableMultiDict
-
-    #: the type to be used for list values from the incoming WSGI environment.
-    #: By default an :class:`~werkzeug.datastructures.ImmutableList` is used
-    #: (for example for :attr:`access_list`).
-    #:
-    #: .. versionadded:: 0.6
-    list_storage_class = ImmutableList
-
-    #: the type to be used for dict values from the incoming WSGI environment.
-    #: By default an
-    #: :class:`~werkzeug.datastructures.ImmutableTypeConversionDict` is used
-    #: (for example for :attr:`cookies`).
-    #:
-    #: .. versionadded:: 0.6
-    dict_storage_class = ImmutableTypeConversionDict
-
-
-    #: Optionally a list of hosts that is trusted by this request.  By default
-    #: all hosts are trusted which means that whatever the client sends the
-    #: host is will be accepted.  This is the recommended setup as a webserver
-    #: should manually be set up to not route invalid hosts to the application.
-    #:
-    #: .. versionadded:: 0.9
-    trusted_hosts = None
-
-    #: Indicates weather the data descriptor should be allowed to read and
-    #: buffer up the input stream.  By default it's enabled.
-    #:
-    #: .. versionadded:: 0.9
-    disable_data_descriptor = False
 
     def _get_file_stream(self, total_content_length, content_type, filename=None,
                         content_length=None):
@@ -182,118 +135,6 @@ class BaseRequest(object):
         return parse_cookie(self.environ, self.charset,
                             self.encoding_errors,
                             cls=self.dict_storage_class)
-
-    @cached_property
-    def headers(self):
-        """The headers from the WSGI environ as immutable
-        :class:`~werkzeug.datastructures.EnvironHeaders`.
-        """
-        return EnvironHeaders(self.environ)
-
-    @cached_property
-    def path(self):
-        """Requested path as unicode.  This works a bit like the regular path
-        info in the WSGI environment but will always include a leading slash,
-        even if the URL root is accessed.
-        """
-        raw_path = wsgi_decoding_dance(self.environ.get('PATH_INFO') or '',
-                                       self.charset, self.encoding_errors)
-        return '/' + raw_path.lstrip('/')
-
-    @cached_property
-    def full_path(self):
-        """Requested path as unicode, including the query string."""
-        return self.path + u'?' + to_unicode(self.query_string, self.url_charset)
-
-    @cached_property
-    def script_root(self):
-        """The root path of the script without the trailing slash."""
-        raw_path = wsgi_decoding_dance(self.environ.get('SCRIPT_NAME') or '',
-                                       self.charset, self.encoding_errors)
-        return raw_path.rstrip('/')
-
-    @cached_property
-    def url(self):
-        """The reconstructed current URL as IRI."""
-        return get_current_url(self.environ,
-                               trusted_hosts=self.trusted_hosts)
-
-    @cached_property
-    def base_url(self):
-        """Like :attr:`url` but without the querystring"""
-        return get_current_url(self.environ, strip_querystring=True,
-                               trusted_hosts=self.trusted_hosts)
-
-    @cached_property
-    def url_root(self):
-        """The full URL root (with hostname), this is the application
-        root as IRI.
-        """
-        return get_current_url(self.environ, True,
-                               trusted_hosts=self.trusted_hosts)
-
-    @cached_property
-    def host_url(self):
-        """Just the host with scheme as IRI."""
-        return get_current_url(self.environ, host_only=True,
-                               trusted_hosts=self.trusted_hosts)
-
-    @cached_property
-    def host(self):
-        """Just the host including the port if available."""
-        return get_host(self.environ, trusted_hosts=self.trusted_hosts)
-
-    query_string = environ_property('QUERY_STRING', '', read_only=True,
-        load_func=wsgi_get_bytes, doc=
-        '''The URL parameters as raw bytestring.''')
-    method = environ_property('REQUEST_METHOD', 'GET', read_only=True, doc=
-        '''The transmission method. (For example ``'GET'`` or ``'POST'``).''')
-
-    @cached_property
-    def access_route(self):
-        """If a forwarded header exists this is a list of all ip addresses
-        from the client ip to the last proxy server.
-        """
-        if 'HTTP_X_FORWARDED_FOR' in self.environ:
-            addr = self.environ['HTTP_X_FORWARDED_FOR'].split(',')
-            return self.list_storage_class([x.strip() for x in addr])
-        elif 'REMOTE_ADDR' in self.environ:
-            return self.list_storage_class([self.environ['REMOTE_ADDR']])
-        return self.list_storage_class()
-
-    @property
-    def remote_addr(self):
-        """The remote address of the client."""
-        return self.environ.get('REMOTE_ADDR')
-
-    remote_user = environ_property('REMOTE_USER', doc='''
-        If the server supports user authentication, and the script is
-        protected, this attribute contains the username the user has
-        authenticated as.''')
-
-    scheme = environ_property('wsgi.url_scheme', doc='''
-        URL scheme (http or https).
-
-        .. versionadded:: 0.7''')
-
-    is_xhr = property(lambda x: x.environ.get('HTTP_X_REQUESTED_WITH', '')
-                      .lower() == 'xmlhttprequest', doc='''
-        True if the request was triggered via a JavaScript XMLHttpRequest.
-        This only works with libraries that support the `X-Requested-With`
-        header and set it to "XMLHttpRequest".  Libraries that do that are
-        prototype, jQuery and Mochikit and probably some more.''')
-    is_secure = property(lambda x: x.environ['wsgi.url_scheme'] == 'https',
-                         doc='`True` if the request is secure.')
-    is_multithread = environ_property('wsgi.multithread', doc='''
-        boolean that is `True` if the application is served by
-        a multithreaded WSGI server.''')
-    is_multiprocess = environ_property('wsgi.multiprocess', doc='''
-        boolean that is `True` if the application is served by
-        a WSGI server that spawns multiple processes.''')
-    is_run_once = environ_property('wsgi.run_once', doc='''
-        boolean that is `True` if the application will be executed only
-        once in a process lifetime.  This is the case for CGI for example,
-        but it's not guaranteed that the exeuction only happens one time.''')
 
 
 class BaseResponse(object):
