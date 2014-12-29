@@ -27,141 +27,12 @@ from werkzeug._compat import to_bytes, string_types, text_type, \
      to_unicode, to_native, BytesIO
 
 
-def _run_wsgi_app(*args):
-    """This function replaces itself to ensure that the test module is not
-    imported unless required.  DO NOT USE!
-    """
-    global _run_wsgi_app
-    from werkzeug.test import run_wsgi_app as _run_wsgi_app
-    return _run_wsgi_app(*args)
-
-
-def _warn_if_string(iterable):
-    """Helper for the response objects to check if the iterable returned
-    to the WSGI server is not a string.
-    """
-    if isinstance(iterable, string_types):
-        from warnings import warn
-        warn(Warning('response iterable was set to a string.  This appears '
-                     'to work but means that the server will send the '
-                     'data to the client char, by char.  This is almost '
-                     'never intended behavior, use response.data to assign '
-                     'strings to the response object.'), stacklevel=2)
-
-
-def _assert_not_shallow(request):
-    if request.shallow:
-        raise RuntimeError('A shallow request tried to consume '
-                           'form data.  If you really want to do '
-                           'that, set `shallow` to False.')
-
-
-def _iter_encoded(iterable, charset):
-    for item in iterable:
-        if isinstance(item, text_type):
-            yield item.encode(charset)
-        else:
-            yield item
-
-
 class BaseResponse(object):
-    """Base response class.  The most important fact about a response object
-    Response can be any kind of iterable or string.  If it's a string it's
-    considered being an iterable with one item which is the string passed.
-    Headers can be a list of tuples or a
-    :class:`~werkzeug.datastructures.Headers` object.
-
-    Special note for `mimetype` and `content_type`:  For most mime types
-    `mimetype` and `content_type` work the same, the difference affects
-    only 'text' mimetypes.  If the mimetype passed with `mimetype` is a
-    mimetype starting with `text/`, the charset parameter of the response
-    object is appended to it.  In contrast the `content_type` parameter is
-    always added as header unmodified.
-
-    .. versionchanged:: 0.5
-       the `direct_passthrough` parameter was added.
-
-    :param response: a string or response iterable.
-    :param status: a string with a status or an integer with the status code.
-    :param headers: a list of headers or a
-                    :class:`~werkzeug.datastructures.Headers` object.
-    :param mimetype: the mimetype for the request.  See notice above.
-    :param content_type: the content type for the request.  See notice above.
-    :param direct_passthrough: if set to `True` :meth:`iter_encoded` is not
-                               called before iteration which makes it
-                               possible to pass special iterators though
-                               unchanged (see :func:`wrap_file` for more
-                               details.)
-    """
-
-    #: if set to `False` accessing properties on the response object will
-    #: not try to consume the response iterator and convert it into a list.
-    #:
-    #: .. versionadded:: 0.6.2
-    #:
-    #:    That attribute was previously called `implicit_seqence_conversion`.
-    #:    (Notice the typo).  If you did use this feature, you have to adapt
-    #:    your code to the name change.
-    implicit_sequence_conversion = True
-
     #: Should this response object correct the location header to be RFC
     #: conformant?  This is true by default.
     #:
     #: .. versionadded:: 0.8
     autocorrect_location_header = True
-
-    def _ensure_sequence(self, mutable=False):
-        """This method can be called by methods that need a sequence.  If
-        `mutable` is true, it will also ensure that the response sequence
-        is a standard Python list.
-
-        .. versionadded:: 0.6
-        """
-        if self.is_sequence:
-            # if we need a mutable object, we ensure it's a list.
-            if mutable and not isinstance(self.response, list):
-                self.response = list(self.response)
-            return
-        if self.direct_passthrough:
-            raise RuntimeError('Attempted implicit sequence conversion '
-                               'but the response object is in direct '
-                               'passthrough mode.')
-        if not self.implicit_sequence_conversion:
-            raise RuntimeError('The response object required the iterable '
-                               'to be a sequence, but the implicit '
-                               'conversion was disabled.  Call '
-                               'make_sequence() yourself.')
-        self.make_sequence()
-
-    def make_sequence(self):
-        """Converts the response iterator in a list.  By default this happens
-        automatically if required.  If `implicit_sequence_conversion` is
-        disabled, this method is not automatically called and some properties
-        might raise exceptions.  This also encodes all the items.
-
-        .. versionadded:: 0.6
-        """
-        if not self.is_sequence:
-            # if we consume an iterable we have to ensure that the close
-            # method of the iterable is called if available when we tear
-            # down the response
-            close = getattr(self.response, 'close', None)
-            self.response = list(self.iter_encoded())
-            if close is not None:
-                self.call_on_close(close)
-
-    def iter_encoded(self):
-        """Iter the response encoded with the encoding of the response.
-        If the response object is invoked as WSGI application the return
-        value of this method is used as application iterator unless
-        :attr:`direct_passthrough` was activated.
-        """
-        if __debug__:
-            _warn_if_string(self.response)
-        # Encode in a separate function so that self.response is fetched
-        # early.  This allows us to wrap the response with the return
-        # value from get_app_iter or iter_encoded.
-        return _iter_encoded(self.response, self.charset)
 
     def set_cookie(self, key, value='', max_age=None, expires=None,
                    path='/', domain=None, secure=None, httponly=False):
@@ -212,41 +83,6 @@ class BaseResponse(object):
         except (TypeError, AttributeError):
             return True
         return False
-
-    @property
-    def is_sequence(self):
-        """If the iterator is buffered, this property will be `True`.  A
-        response object will consider an iterator to be buffered if the
-        response attribute is a list or tuple.
-
-        .. versionadded:: 0.6
-        """
-        return isinstance(self.response, (tuple, list))
-
-    def close(self):
-        """Close the wrapped response if possible.  You can also use the object
-        in a with statement which will automatically close it.
-
-        .. versionadded:: 0.9
-           Can now be used in a with statement.
-        """
-        if hasattr(self.response, 'close'):
-            self.response.close()
-        for func in self._on_close:
-            func()
-
-    def freeze(self):
-        """Call this method if you want to make your response object ready for
-        being pickled.  This buffers the generator if there is one.  It will
-        also set the `Content-Length` header to the length of the body.
-
-        .. versionchanged:: 0.6
-           The `Content-Length` header is now set.
-        """
-        # we explicitly set the length to a list of the *encoded* response
-        # iterator.  Even if the implicit sequence conversion is disabled.
-        self.response = list(self.iter_encoded())
-        self.headers['Content-Length'] = str(sum(map(len, self.response)))
 
     def get_wsgi_headers(self, environ):
         """This is automatically called right before the response is started
@@ -357,12 +193,8 @@ class BaseResponse(object):
         if environ['REQUEST_METHOD'] == 'HEAD' or \
            100 <= status < 200 or status in (204, 304):
             iterable = ()
-        elif self.direct_passthrough:
-            if __debug__:
-                _warn_if_string(self.response)
-            return self.response
         else:
-            iterable = self.iter_encoded()
+            iterable = self.response
         return ClosingIterator(iterable, self.close)
 
     def get_wsgi_response(self, environ):
